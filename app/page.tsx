@@ -1,8 +1,9 @@
 'use client'
 
+import Image from 'next/image'
 import { useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
-import { Canvas, useFrame } from '@react-three/fiber'
+import { Canvas, ThreeEvent, useFrame } from '@react-three/fiber'
 import { Environment, OrbitControls } from '@react-three/drei'
 import * as THREE from 'three'
 
@@ -18,198 +19,328 @@ type PartInfo = {
 const PARTS: PartInfo[] = [
   {
     name: 'PUMP & STATOR SUPPORT',
-    short: 'Feeds hydraulic pressure and routes apply oil to rotating clutch assemblies.',
-    role: 'The front pump creates line pressure. The stator support routes oil to the 1-2-3-4, 3-5-R and 4-5-6 clutch circuits and supports converter-related oil flow.',
-    failures: ['Pump wear or pressure loss', 'Stator support sealing or gasket leakage', 'Damaged sealing rings or feed passages'],
-    symptoms: ['Low or erratic line pressure', 'Multiple clutch slip complaints', 'Delayed engagement or converter concerns'],
-    checks: ['Verify commanded vs. actual line pressure', 'Air-check clutch feed circuits', 'Inspect stator support sealing areas and pump surfaces'],
+    short: 'Front hydraulic pump and stator support assembly.',
+    role: 'Creates line pressure and routes apply oil into the rotating clutch circuits while supporting converter oil flow.',
+    failures: ['Pump wear or pressure loss', 'Stator-support gasket or sealing leakage', 'Damaged sealing rings or bushings'],
+    symptoms: ['Delayed engagement', 'Low or erratic line pressure', 'Multiple clutch slip or converter concerns'],
+    checks: ['Verify commanded vs actual line pressure', 'Air-check clutch feeds', 'Inspect pump faces, stator support and sealing areas'],
   },
   {
     name: '3-5-R / 1-2-3-4 DRUM',
-    short: 'Shared rotating housing for two of the 6L80’s major apply clutch packs.',
-    role: 'This drum carries the 3-5-Reverse and 1-2-3-4 clutch elements. These clutches are central to forward ranges and Reverse powerflow, so leakage or mechanical damage here can affect multiple gears.',
-    failures: ['3-5-R drum weld or snap-ring issues', 'Piston or seal leakage', 'Burned friction elements from hydraulic loss'],
-    symptoms: ['No or slipping Reverse', '2-3 or 4-5 flare', 'Wrong-gear starts, bind or burned clutches'],
-    checks: ['Air-check both clutch circuits', 'Inspect drum welds and snap-ring retention', 'Inspect pistons, seals, frictions and steels'],
+    short: 'Large front rotating drum containing two major clutch systems.',
+    role: 'Carries the 3-5-Reverse and 1-2-3-4 clutch elements. Damage or leakage here can affect several forward ranges and Reverse.',
+    failures: ['Drum weld or snap-ring issues', 'Piston/seal leakage', 'Burned frictions and steels'],
+    symptoms: ['No or slipping Reverse', 'Shift flare', 'Wrong-gear starts or burned clutch material'],
+    checks: ['Air-check both circuits', 'Inspect welds and retention', 'Inspect pistons, seals, frictions and steels'],
   },
   {
     name: '4-5-6 CLUTCH ASSEMBLY',
-    short: 'Upper-range clutch used to carry torque in the high gears.',
-    role: 'The 4-5-6 clutch is a rotating clutch assembly used in the upper forward gears. Proper clutch clearance and compensator-feed sealing are critical to clean shifts and clutch life.',
-    failures: ['Burned 4-5-6 frictions', 'Incorrect clutch clearance', 'Compensator-feed or turbine-shaft sealing-ring leakage'],
-    symptoms: ['Slip or flare in 4th, 5th or 6th', 'Bind during circuit charge after rebuild', 'Overheated or burned 4-5-6 clutch pack'],
-    checks: ['Measure clutch clearance', 'Air-check apply circuit', 'Inspect turbine-shaft seals and related valve-body regulation'],
+    short: 'Upper-range rotating clutch drum and friction pack.',
+    role: 'Applies through the upper forward ranges. Clearance and feed sealing are critical to clean 4th, 5th and 6th gear operation.',
+    failures: ['Burned 4-5-6 frictions', 'Incorrect clutch clearance', 'Compensator-feed or sealing-ring leakage'],
+    symptoms: ['Slip or flare in upper gears', 'Bind after rebuild', 'Overheated 4-5-6 clutch pack'],
+    checks: ['Measure clutch clearance', 'Air-check apply circuit', 'Inspect turbine-shaft seals, piston and backing hardware'],
   },
   {
     name: 'CENTER SUPPORT / 2-6 CLUTCH',
-    short: 'Stationary clutch section that helps establish 2nd and 6th gear powerflow.',
-    role: 'The center support houses the 2-6 and Low/Reverse clutch sections. Unlike the rotating clutch drums, these elements are stationary and react torque through the case/support structure.',
-    failures: ['Seal or piston leakage', 'Burned 2-6 frictions', 'Support or apply-circuit leakage'],
-    symptoms: ['2nd or 6th gear slip', 'Shift flare involving 1-2 or 5-6 events', 'Ratio codes or poor shift quality'],
-    checks: ['Air-check 2-6 apply', 'Inspect support sealing areas', 'Inspect frictions, steels and piston seals'],
+    short: 'Stationary center support with the 2-6 clutch section.',
+    role: 'Supports the middle of the geartrain and carries stationary clutch elements that react torque into the case.',
+    failures: ['Support seal leakage', 'Burned 2-6 frictions', 'Piston or apply-circuit leakage'],
+    symptoms: ['2nd or 6th gear slip', '1-2 or 5-6 flare', 'Ratio codes or poor shift quality'],
+    checks: ['Air-check 2-6 apply', 'Inspect support seals and bores', 'Inspect frictions, steels and piston seals'],
   },
   {
     name: 'LOW / REVERSE CLUTCH',
-    short: 'Stationary holding clutch used for Reverse and low-speed engine-braking conditions.',
-    role: 'The Low/Reverse clutch anchors part of the geartrain during Reverse and selected low-range conditions. It is controlled hydraulically through the center-support and valve-body circuits.',
-    failures: ['Apply leakage', 'Burned clutch material', 'Valve-body or checkball feed issues'],
-    symptoms: ['Poor or delayed Reverse contribution', 'Engine-braking complaints', 'Harsh or inconsistent low-range engagement'],
-    checks: ['Air-check Low/Reverse circuit', 'Inspect clutch pack and seals', 'Verify related valve-body feed and checkball condition'],
+    short: 'Rear stationary holding clutch used in Reverse and low-range operation.',
+    role: 'Anchors part of the geartrain during Reverse and selected low-speed conditions and must release correctly during transitions.',
+    failures: ['Apply leakage', 'Burned clutch material', 'Hydraulic feed or checkball issues'],
+    symptoms: ['Weak or delayed Reverse contribution', 'Engine-braking complaints', 'Bind or harsh low-range engagement'],
+    checks: ['Air-check Low/Reverse circuit', 'Inspect friction pack and seals', 'Verify related hydraulic feed paths'],
   },
   {
     name: 'REAR PLANETARY / OUTPUT CARRIER',
-    short: 'Planetary geartrain that creates the transmission’s ratio changes and sends torque to the output.',
-    role: 'The rear geartrain combines carriers, sun gears and ring gears to create the six forward ratios and Reverse when different clutch elements hold or drive sections of the planetary sets.',
-    failures: ['Planet pin or bearing wear', 'Damaged gear teeth', 'Carrier or thrust damage'],
-    symptoms: ['Gear noise', 'Ratio errors', 'Metal debris and loss of drive in severe failures'],
-    checks: ['Inspect gear teeth and pinion movement', 'Check thrust surfaces and bearings', 'Inspect for metal contamination throughout the unit'],
+    short: 'Rear planetary gearset and output carrier.',
+    role: 'Combines ring, sun and planet members to create ratio changes and transmit torque to the output shaft.',
+    failures: ['Pinion or needle-bearing wear', 'Gear tooth damage', 'Lubrication or thrust failure'],
+    symptoms: ['Geartrain noise', 'Ratio errors', 'Metal debris or loss of drive'],
+    checks: ['Inspect pinions and gear teeth', 'Check thrust surfaces and bearings', 'Inspect lubrication passages and debris'],
   },
   {
     name: 'VALVE BODY',
-    short: 'Hydraulic routing center that meters line pressure to each apply circuit.',
-    role: 'The valve body takes regulated line pressure and routes it through clutch regulator, select and converter circuits. Bore wear or a sticking valve can create very specific shift and engagement complaints.',
-    failures: ['Clutch regulator valve sticking or bore wear', 'Pressure-regulator wear', 'Checkball erosion or separator-plate damage'],
-    symptoms: ['Flares, harsh shifts or bind-ups', 'No Forward or no Reverse with normal line pressure', 'Burned clutches from poor apply control'],
-    checks: ['Vacuum-test suspect valve bores', 'Inspect checkballs and separator plate', 'Verify clutch regulator valve movement and calibration'],
+    short: 'Cast-aluminum hydraulic control body mounted above the pan.',
+    role: 'Meters and routes regulated pressure through clutch, converter and select circuits according to commanded operation.',
+    failures: ['Regulator bore wear', 'Sticking valves', 'Checkball or separator-plate wear'],
+    symptoms: ['Flares, harsh shifts or bind', 'No Forward or Reverse with pressure present', 'Burned clutches from poor apply control'],
+    checks: ['Vacuum-test suspect bores', 'Inspect plate and checkballs', 'Verify valve movement and hydraulic integrity'],
   },
   {
     name: 'TEHCM / SOLENOID BODY',
-    short: 'Electronic-hydraulic control module that commands shift, pressure and converter operation.',
-    role: 'The TEHCM integrates the transmission control electronics with the solenoid body. It commands pressure-control and shift solenoids, monitors speed signals and coordinates converter-clutch operation.',
-    failures: ['Solenoid performance faults', 'Pressure-switch or internal circuit faults', 'Electrical or communication problems'],
-    symptoms: ['Harsh shifts or failsafe operation', 'Solenoid or pressure-control DTCs', 'Converter clutch or shift timing complaints'],
-    checks: ['Scan commanded vs. actual data', 'Perform circuit and solenoid tests', 'Confirm power, ground, communication and speed-sensor inputs'],
+    short: 'Integrated transmission controller and solenoid body.',
+    role: 'Combines the transmission control electronics with pressure-control and shift solenoids and monitors transmission inputs.',
+    failures: ['Solenoid performance faults', 'Pressure-switch/internal circuit faults', 'Electrical or communication problems'],
+    symptoms: ['Harsh shifting or failsafe', 'Solenoid/pressure-control codes', 'TCC or shift timing complaints'],
+    checks: ['Review scan data', 'Perform circuit/solenoid tests', 'Confirm power, ground, communication and speed inputs'],
   },
 ]
 
-function FrictionStack({ count = 6, radius = 1.05, x = 0 }: { count?: number, radius?: number, x?: number }) {
+const CASE_GREY = '#777d80'
+const DARK = '#181b1d'
+const STEEL = '#b3b7b9'
+const FRICTION = '#2a2927'
+const RED = '#d71920'
+
+function mat(color: string, active = false, metalness = 0.9, roughness = 0.32) {
+  return <meshStandardMaterial color={active ? RED : color} metalness={metalness} roughness={roughness} />
+}
+
+function FrictionPack({ count, radius, width = 0.52 }: { count: number; radius: number; width?: number }) {
   return (
-    <group position={[x, 0, 0]}>
+    <group>
       {Array.from({ length: count }).map((_, i) => (
-        <mesh key={i} position={[(i - (count - 1) / 2) * 0.09, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <torusGeometry args={[radius, 0.045, 10, 56]} />
-          <meshStandardMaterial color={i % 2 ? '#aeb4b8' : '#2c2f31'} metalness={0.9} roughness={0.26} />
+        <mesh key={i} position={[(i - (count - 1) / 2) * (width / count), 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <torusGeometry args={[radius, 0.055, 12, 54]} />
+          {mat(i % 2 ? STEEL : FRICTION, false, i % 2 ? 0.98 : 0.3, i % 2 ? 0.2 : 0.68)}
         </mesh>
       ))}
     </group>
   )
 }
 
-function Planetary({ x = 0, scale = 1 }: { x?: number, scale?: number }) {
+function SplinedHub({ radius = 0.63, length = 0.7 }: { radius?: number; length?: number }) {
   return (
-    <group position={[x, 0, 0]} scale={scale}>
+    <group>
       <mesh rotation={[0, 0, Math.PI / 2]}>
-        <torusGeometry args={[0.98, 0.11, 16, 60]} />
-        <meshStandardMaterial color="#8b9398" metalness={1} roughness={0.23} />
+        <cylinderGeometry args={[radius, radius, length, 42]} />
+        {mat('#52585c')}
       </mesh>
-      {[0, 1, 2, 3].map((i) => {
-        const a = (i / 4) * Math.PI * 2
+      {Array.from({ length: 16 }).map((_, i) => {
+        const a = (i / 16) * Math.PI * 2
         return (
-          <mesh key={i} position={[0, Math.cos(a) * 0.62, Math.sin(a) * 0.62]} rotation={[0, 0, Math.PI / 2]}>
-            <cylinderGeometry args={[0.2, 0.2, 0.28, 24]} />
-            <meshStandardMaterial color="#34383b" metalness={1} roughness={0.25} />
+          <mesh key={i} position={[0, Math.cos(a) * radius * 0.93, Math.sin(a) * radius * 0.93]} rotation={[0, 0, Math.PI / 2]}>
+            <boxGeometry args={[length * 0.96, 0.055, 0.07]} />
+            {mat('#202326')}
           </mesh>
         )
       })}
+    </group>
+  )
+}
+
+function PlanetarySet({ active }: { active: boolean }) {
+  return (
+    <group>
       <mesh rotation={[0, 0, Math.PI / 2]}>
-        <cylinderGeometry args={[0.26, 0.26, 0.7, 28]} />
-        <meshStandardMaterial color="#151719" metalness={0.95} roughness={0.2} />
+        <torusGeometry args={[0.98, 0.14, 18, 64]} />
+        {mat('#8c9498', active)}
+      </mesh>
+      {[0, 1, 2, 3, 4].map((i) => {
+        const a = (i / 5) * Math.PI * 2
+        return (
+          <group key={i} position={[0, Math.cos(a) * 0.62, Math.sin(a) * 0.62]}>
+            <mesh rotation={[0, 0, Math.PI / 2]}>
+              <cylinderGeometry args={[0.21, 0.21, 0.34, 22]} />
+              {mat('#3c4246', active)}
+            </mesh>
+            {Array.from({ length: 10 }).map((_, t) => {
+              const ta = (t / 10) * Math.PI * 2
+              return (
+                <mesh key={t} position={[0, Math.cos(ta) * 0.205, Math.sin(ta) * 0.205]}>
+                  <boxGeometry args={[0.34, 0.035, 0.045]} />
+                  {mat('#111315')}
+                </mesh>
+              )
+            })}
+          </group>
+        )
+      })}
+      <mesh rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.3, 0.3, 0.88, 32]} />
+        {mat('#202427', active)}
       </mesh>
     </group>
   )
 }
 
-function Exploded6L80({ exploded, activePart }: { exploded: boolean, activePart: number }) {
-  const group = useRef<THREE.Group>(null)
-  const progress = useRef(0)
+function CaseShell({ opacity = 1 }: { opacity?: number }) {
+  const points = useMemo(
+    () => [
+      new THREE.Vector2(0.0, 2.15),
+      new THREE.Vector2(0.28, 2.12),
+      new THREE.Vector2(0.62, 1.92),
+      new THREE.Vector2(1.02, 1.55),
+      new THREE.Vector2(1.44, 1.32),
+      new THREE.Vector2(3.7, 1.27),
+      new THREE.Vector2(4.35, 1.08),
+      new THREE.Vector2(4.95, 0.82),
+      new THREE.Vector2(5.55, 0.72),
+    ],
+    []
+  )
+  return (
+    <group position={[-2.85, 0.2, 0]}>
+      <mesh rotation={[0, 0, -Math.PI / 2]}>
+        <latheGeometry args={[points, 72]} />
+        <meshStandardMaterial color={CASE_GREY} metalness={0.72} roughness={0.54} transparent opacity={opacity} side={THREE.DoubleSide} />
+      </mesh>
+      {[0.65, 1.02, 1.43].map((x) => (
+        <mesh key={x} position={[x, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <torusGeometry args={[1.6 - x * 0.26, 0.055, 10, 64]} />
+          <meshStandardMaterial color="#555b5e" metalness={0.7} roughness={0.5} transparent opacity={opacity} />
+        </mesh>
+      ))}
+      <mesh position={[2.05, -1.38, 0]}>
+        <boxGeometry args={[2.95, 0.28, 2.0]} />
+        <meshStandardMaterial color="#2a2d2f" metalness={0.62} roughness={0.48} transparent opacity={opacity} />
+      </mesh>
+      <mesh position={[5.36, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.74, 0.64, 0.9, 44]} />
+        <meshStandardMaterial color="#656b6e" metalness={0.78} roughness={0.46} transparent opacity={opacity} />
+      </mesh>
+      {Array.from({ length: 10 }).map((_, i) => {
+        const a = (i / 10) * Math.PI * 2
+        return (
+          <mesh key={i} position={[0.08, Math.cos(a) * 1.83, Math.sin(a) * 1.83]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[0.07, 0.07, 0.16, 14]} />
+            <meshStandardMaterial color="#3d4143" metalness={0.7} roughness={0.52} transparent opacity={opacity} />
+          </mesh>
+        )
+      })}
+    </group>
+  )
+}
+
+function ValveBody({ active, tehcmActive }: { active: boolean; tehcmActive: boolean }) {
+  return (
+    <group>
+      <mesh>
+        <boxGeometry args={[3.8, 0.32, 1.72]} />
+        {mat('#6e7477', active, 0.78, 0.42)}
+      </mesh>
+      {[-1.55, -1.05, -0.55, -0.05, 0.45, 0.95, 1.45].map((x, i) => (
+        <mesh key={x} position={[x, 0.26, i % 2 ? 0.38 : -0.3]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.105, 0.105, 0.5, 18]} />
+          {mat('#2d3235', tehcmActive)}
+        </mesh>
+      ))}
+      <mesh position={[0.15, -0.22, 0.82]}>
+        <boxGeometry args={[2.75, 0.22, 0.52]} />
+        {mat('#101214', tehcmActive, 0.25, 0.66)}
+      </mesh>
+      <mesh position={[1.55, -0.12, 0.94]}>
+        <cylinderGeometry args={[0.26, 0.26, 0.55, 24]} />
+        {mat('#171a1c', tehcmActive)}
+      </mesh>
+    </group>
+  )
+}
+
+function Rebuilt6L80({ exploded, activePart, setActivePart }: { exploded: boolean; activePart: number; setActivePart: (n: number) => void }) {
+  const root = useRef<THREE.Group>(null)
+  const refs = useRef<(THREE.Group | null)[]>([])
+  const progress = useRef(exploded ? 1 : 0)
+  const base = [-2.28, -1.35, -0.35, 0.72, 1.55, 2.55]
+  const spread = [-2.4, -1.55, -0.72, 0.5, 1.35, 2.25]
 
   useFrame((_, delta) => {
-    progress.current = THREE.MathUtils.damp(progress.current, exploded ? 1 : 0.08, 3.1, delta)
-    if (group.current) group.current.rotation.y += delta * 0.035
+    progress.current = THREE.MathUtils.damp(progress.current, exploded ? 1 : 0, 4.2, delta)
+    refs.current.forEach((g, i) => {
+      if (!g) return
+      const targetX = base[i] + spread[i] * progress.current + (activePart === i ? 0.32 : 0)
+      g.position.x = THREE.MathUtils.damp(g.position.x, targetX, 6, delta)
+    })
+    if (root.current) root.current.rotation.y += delta * 0.02
   })
 
-  const px = (base: number, spread: number, index: number) => base + spread * progress.current + (activePart === index ? 0.45 : 0)
-  const selected = (index: number) => activePart === index ? '#d71920' : '#727a80'
+  const click = (index: number) => (e: ThreeEvent<MouseEvent>) => {
+    e.stopPropagation()
+    setActivePart(index)
+  }
 
   return (
-    <group ref={group} rotation={[0.08, -0.28, -0.14]} scale={0.84}>
-      <group position={[px(-3.15, -1.4, 0), 0, 0]}>
+    <group ref={root} rotation={[0.05, -0.32, -0.12]} scale={0.88}>
+      <CaseShell opacity={exploded ? 0.11 : 0.92} />
+
+      <group ref={(el) => { refs.current[0] = el }} position={[base[0], 0.15, 0]} onClick={click(0)}>
         <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[1.55, 1.22, 0.42, 56]} />
-          <meshStandardMaterial color={selected(0)} metalness={0.98} roughness={0.23} />
+          <cylinderGeometry args={[1.48, 1.25, 0.38, 64]} />
+          {mat('#858b8e', activePart === 0)}
         </mesh>
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <torusGeometry args={[1.05, 0.11, 16, 56]} />
-          <meshStandardMaterial color="#191b1e" metalness={0.95} roughness={0.2} />
+        <mesh position={[-0.17, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.48, 0.48, 0.82, 42]} />
+          {mat(DARK, activePart === 0)}
+        </mesh>
+        <mesh position={[-0.35, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <torusGeometry args={[0.92, 0.1, 18, 58]} />
+          {mat('#3c4144', activePart === 0)}
         </mesh>
       </group>
 
-      <group position={[px(-1.95, -0.95, 1), 0, 0]}>
+      <group ref={(el) => { refs.current[1] = el }} position={[base[1], 0.05, 0]} onClick={click(1)}>
         <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[1.35, 1.35, 0.82, 56]} />
-          <meshStandardMaterial color={selected(1)} metalness={0.94} roughness={0.28} />
+          <cylinderGeometry args={[1.29, 1.29, 1.0, 64]} />
+          {mat('#6f7578', activePart === 1)}
         </mesh>
-        <FrictionStack count={7} radius={1.05} />
+        <mesh position={[-0.44, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <torusGeometry args={[1.05, 0.08, 16, 60]} />
+          {mat('#24282a', activePart === 1)}
+        </mesh>
+        <FrictionPack count={8} radius={0.98} width={0.54} />
+        <SplinedHub radius={0.62} length={1.12} />
       </group>
 
-      <group position={[px(-0.65, -0.4, 2), 0, 0]}>
+      <group ref={(el) => { refs.current[2] = el }} position={[base[2], 0, 0]} onClick={click(2)}>
         <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[1.26, 1.26, 0.72, 56]} />
-          <meshStandardMaterial color={selected(2)} metalness={0.95} roughness={0.24} />
+          <cylinderGeometry args={[1.18, 1.18, 0.84, 60]} />
+          {mat('#565d61', activePart === 2)}
         </mesh>
-        <FrictionStack count={6} radius={0.98} />
+        <FrictionPack count={7} radius={0.9} width={0.48} />
+        <mesh position={[0.42, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <torusGeometry args={[0.99, 0.095, 16, 56]} />
+          {mat('#2d3134', activePart === 2)}
+        </mesh>
       </group>
 
-      <group position={[px(0.58, 0.28, 3), 0, 0]}>
+      <group ref={(el) => { refs.current[3] = el }} position={[base[3], 0, 0]} onClick={click(3)}>
         <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[1.48, 1.28, 0.64, 56]} />
-          <meshStandardMaterial color={selected(3)} metalness={0.96} roughness={0.24} />
+          <cylinderGeometry args={[1.34, 1.24, 0.62, 60]} />
+          {mat('#787f83', activePart === 3)}
         </mesh>
-        <FrictionStack count={5} radius={1.05} />
+        <FrictionPack count={6} radius={1.0} width={0.44} />
+        <mesh position={[0.32, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <torusGeometry args={[1.1, 0.08, 16, 56]} />
+          {mat(DARK, activePart === 3)}
+        </mesh>
       </group>
 
-      <group position={[px(1.62, 0.85, 4), 0, 0]}>
+      <group ref={(el) => { refs.current[4] = el }} position={[base[4], 0, 0]} onClick={click(4)}>
         <mesh rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[1.46, 1.46, 0.52, 56]} />
-          <meshStandardMaterial color={selected(4)} metalness={0.93} roughness={0.3} />
+          <cylinderGeometry args={[1.35, 1.35, 0.45, 58]} />
+          {mat('#5d6367', activePart === 4)}
         </mesh>
-        <FrictionStack count={5} radius={1.08} />
-      </group>
-
-      <group position={[px(2.48, 1.2, 5), 0, 0]}>
-        <FrictionStack count={5} radius={1.0} />
-        <mesh rotation={[0, 0, Math.PI / 2]}>
-          <torusGeometry args={[1.15, 0.12, 16, 56]} />
-          <meshStandardMaterial color={selected(5)} metalness={0.92} roughness={0.29} />
+        <FrictionPack count={5} radius={1.02} width={0.35} />
+        <mesh position={[0.25, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <torusGeometry args={[1.16, 0.1, 16, 56]} />
+          {mat('#24282b', activePart === 4)}
         </mesh>
       </group>
 
-      <group position={[px(3.55, 1.65, 6), 0, 0]}>
-        <Planetary scale={1.02} />
-        <mesh position={[0.46, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
-          <cylinderGeometry args={[0.34, 0.34, 1.2, 30]} />
-          <meshStandardMaterial color={selected(6)} metalness={0.95} roughness={0.22} />
+      <group ref={(el) => { refs.current[5] = el }} position={[base[5], 0, 0]} onClick={click(5)}>
+        <PlanetarySet active={activePart === 5} />
+        <mesh position={[0.72, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+          <cylinderGeometry args={[0.31, 0.31, 1.5, 34]} />
+          {mat('#25292c', activePart === 5)}
         </mesh>
       </group>
 
-      <group position={[0, -2.05 - progress.current * 1.05, 0.1]}>
-        <mesh rotation={[-Math.PI / 2, 0, 0]}>
-          <boxGeometry args={[4.15, 1.7, 0.22]} />
-          <meshStandardMaterial color={activePart === 6 ? '#303438' : '#0f1113'} metalness={0.78} roughness={0.33} />
-        </mesh>
-        {[-1.5, -1, -0.5, 0, 0.5, 1, 1.5].map((p) => (
-          <mesh key={p} position={[p, 0.25, 0]}>
-            <cylinderGeometry args={[0.12, 0.12, 0.45, 20]} />
-            <meshStandardMaterial color={activePart === 7 ? '#d71920' : '#35393c'} metalness={0.86} roughness={0.28} />
-          </mesh>
-        ))}
+      <group position={[0.05, -2.25 - progress.current * 1.15, 0]} onClick={click(6)}>
+        <ValveBody active={activePart === 6} tehcmActive={activePart === 7} />
       </group>
     </group>
   )
 }
 
 export default function Home() {
-  const [exploded, setExploded] = useState(true)
+  const [exploded, setExploded] = useState(false)
   const [activePart, setActivePart] = useState(0)
   const active = useMemo(() => PARTS[activePart], [activePart])
 
@@ -222,7 +353,7 @@ export default function Home() {
       </nav>
 
       <section id="top" className="photoHero">
-        <div className="heroPhoto" role="img" aria-label="Trans-Formers Transmission shop exterior" />
+        <Image className="heroPhoto" src="/shop-front-ai.webp" alt="Trans-Formers Transmission shop exterior" fill priority sizes="100vw" />
         <div className="heroShade" />
         <motion.div className="photoHeroCopy" initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.75 }}>
           <p className="eyebrow">DALTON, GEORGIA • FAMILY OWNED</p>
@@ -230,47 +361,46 @@ export default function Home() {
           <p className="sub">Transmission rebuilding, diagnostics and complete auto repair for all makes and models.</p>
           <div className="actions"><a href="#services" className="primary">OUR SERVICES</a><a href="#lab" className="secondary">OPEN 6L80 LAB →</a></div>
         </motion.div>
-        <div className="heroBadge"><span>844</span><b>SHUGART RD.</b><small>DALTON, GA</small></div>
+        <div className="heroBadge"><span>844</span><b>SHUGART RD</b><small>DALTON, GA 30720</small></div>
       </section>
 
       <section className="stats">
-        <div><b>TRANSMISSIONS</b><span>DIAGNOSIS & REBUILDING</span></div>
-        <div><b>ALL MAKES</b><span>& MODELS</span></div>
-        <div><b>IN-HOUSE</b><span>REBUILD WORK</span></div>
+        <div><b>TRANSMISSIONS</b><span>REBUILD • REPAIR • DIAGNOSE</span></div>
+        <div><b>ALL MAKES</b><span>DOMESTIC • IMPORT</span></div>
+        <div><b>IN-HOUSE</b><span>DIAGNOSIS & REBUILDING</span></div>
         <div><b>DALTON</b><span>GEORGIA</span></div>
       </section>
 
       <section id="lab" className="lab labV2">
         <div className="labHeading">
-          <p className="eyebrow">INTERACTIVE TRANSMISSION LAB / 001</p>
-          <h2>EXPLORE THE <i>6L80</i></h2>
-          <p className="lead">Built from teardown order and technical references. This viewer follows the real 6L80 assembly sequence more closely: pump, rotating clutch drums, center-support clutch section, rear geartrain and hydraulic controls.</p>
-          <button className="explodeButton" onClick={() => setExploded((v) => !v)}>{exploded ? 'ASSEMBLE 6L80' : 'EXPLODE 6L80'}</button>
+          <p className="eyebrow">6L80 INTERACTIVE RECONSTRUCTION</p>
+          <h2>SEE WHAT'S<br /><i>INSIDE.</i></h2>
+          <p className="lead">An original 6L80 educational reconstruction built from teardown order, service-component relationships and real 6L80 proportions. It is not factory CAD, but the case shape, major assemblies and exploded order are now modeled to read like the actual transmission instead of generic rings floating in space.</p>
+          <button className="explodeButton" onClick={() => setExploded(!exploded)}>{exploded ? 'ASSEMBLE TRANSMISSION' : 'EXPLODE TRANSMISSION'}</button>
         </div>
 
         <div className="labStage">
-          <Canvas camera={{ position: [0, 2.7, 11], fov: 41 }}>
-            <ambientLight intensity={0.75} />
-            <directionalLight position={[5, 7, 5]} intensity={4.6} />
-            <pointLight position={[-5, 1, 4]} intensity={4.2} color="#d2232a" />
-            <pointLight position={[5, -2, 2]} intensity={2.4} color="#8e979d" />
-            <Exploded6L80 exploded={exploded} activePart={activePart} />
+          <Canvas camera={{ position: [0.2, 3.1, 10.4], fov: 37 }} dpr={[1, 1.6]}>
+            <ambientLight intensity={0.72} />
+            <directionalLight position={[4, 7, 5]} intensity={2.3} />
+            <directionalLight position={[-4, 2, -3]} intensity={1.3} />
+            <Rebuilt6L80 exploded={exploded} activePart={activePart} setActivePart={setActivePart} />
             <Environment preset="warehouse" />
-            <OrbitControls enablePan={false} minDistance={7} maxDistance={14} autoRotate={false} />
+            <OrbitControls enablePan={false} minDistance={6.5} maxDistance={14} target={[0, -0.25, 0]} />
           </Canvas>
-          <div className="labHud"><span>DRAG TO ROTATE</span><span>SCROLL TO ZOOM</span><strong>{exploded ? 'EXPLODED VIEW' : 'ASSEMBLED VIEW'}</strong></div>
+          <div className="labHud"><span>DRAG TO ROTATE</span><span>SCROLL / PINCH TO ZOOM</span><strong>{exploded ? 'EXPLODED VIEW' : 'ASSEMBLED VIEW'}</strong></div>
         </div>
 
         <div className="componentPanel">
-          {PARTS.map((part, index) => (
-            <button key={part.name} className={activePart === index ? 'active' : ''} onClick={() => setActivePart(index)}>
-              <span>{String(index + 1).padStart(2, '0')}</span><b>{part.name}</b><i>VIEW</i>
+          {PARTS.map((p, i) => (
+            <button key={p.name} className={activePart === i ? 'active' : ''} onClick={() => setActivePart(i)}>
+              <span>{String(i + 1).padStart(2, '0')}</span><b>{p.name}</b><i>VIEW</i>
             </button>
           ))}
         </div>
 
         <div className="partDetail">
-          <span>SELECTED COMPONENT</span>
+          <span>SELECTED ASSEMBLY</span>
           <h3>{active.name}</h3>
           <p>{active.short}</p>
           <div className="researchGrid">
@@ -283,14 +413,20 @@ export default function Home() {
       </section>
 
       <section id="services" className="services">
-        <div><p className="eyebrow">WHAT WE DO</p><h2>TRANSMISSION<br /><i>SPECIALISTS.</i></h2><p className="lead">From diagnosis to complete rebuilding, customers can see what failed and understand what is being repaired.</p></div>
-        <div className="serviceList"><p><b>01</b> Transmission Diagnostics</p><p><b>02</b> Complete Rebuilds</p><p><b>03</b> Valve Body & Electrical</p><p><b>04</b> Torque Converter Service</p><p><b>05</b> Complete Auto Repair</p></div>
+        <div><p className="eyebrow">WHAT WE DO</p><h2>TRANSMISSION<br /><i>SPECIALISTS.</i></h2><p className="lead">From diagnosis to complete rebuilds, the work stays focused on finding the actual cause instead of throwing parts at the vehicle and hoping the automotive gods feel charitable.</p></div>
+        <div className="serviceList">
+          <p><b>01</b> Transmission Diagnostics</p>
+          <p><b>02</b> Transmission Rebuilding</p>
+          <p><b>03</b> Valve Body & Solenoid Repair</p>
+          <p><b>04</b> Torque Converter Service</p>
+          <p><b>05</b> Complete Auto Repair</p>
+        </div>
       </section>
 
       <footer id="contact">
-        <h2>844 SHUGART RD.<br /><i>DALTON, GA 30720</i></h2>
-        <p>Trans-Formers Transmission & Complete Auto Repair Specialist</p>
-        <div className="footerActions"><a href="tel:+17065292706">CALL (706) 529-2706</a><a href="https://maps.google.com/?q=844+Shugart+Rd+Dalton+GA+30720">OPEN IN MAPS →</a></div>
+        <h2>READY TO GET IT<br /><i>FIXED RIGHT?</i></h2>
+        <p>844 Shugart Rd, Dalton, GA 30720 • (706) 529-2706</p>
+        <div className="footerActions"><a href="tel:+17065292706">CALL THE SHOP</a><a href="https://maps.google.com/?q=844+Shugart+Rd+Dalton+GA+30720">GET DIRECTIONS</a></div>
       </footer>
     </main>
   )
